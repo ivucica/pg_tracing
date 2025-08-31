@@ -84,6 +84,22 @@ pg_tracing_curl_calloc_callback(size_t nmemb, size_t size)
 }
 
 /*
+ * Callback to pass via CURLOPT_WRITEFUNCTION that ignores the output.
+ *
+ * The input size is returned as the written size.
+ *
+ * If the extension needs to handle the response, it should be replaced by a
+ * non-sinkhole variant that will append the data into a per-connection
+ * location, which can be provided via CURLOPT_WRITEDATA into userp.
+ */
+static size_t
+pg_tracing_curl_write_function_sinkhole_callback(
+	void *data, size_t size, size_t nmemb, void *userp)
+{
+	return size * nmemb;
+}
+
+/*
  * Send json to configured otel http endpoint
  */
 static CURLcode
@@ -104,6 +120,8 @@ send_json_trace(OtelContext * octx, const char *json_span)
 			return CURLE_FAILED_INIT;
 		}
 		curl_easy_setopt(octx->curl, CURLOPT_HTTPHEADER, octx->headers);
+                curl_easy_setopt(octx->curl, CURLOPT_WRITEFUNCTION, pg_tracing_curl_write_function_sinkhole_callback);
+                curl_easy_setopt(octx->curl, CURLOPT_WRITEDATA, NULL);
 		octx->config_changed = true;
 	}
 	if (octx->config_changed)
